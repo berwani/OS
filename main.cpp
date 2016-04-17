@@ -256,6 +256,12 @@ public:
 			return;
 		}
 
+		if(file->readOnly)
+		{
+			cout<<"Sorry the file is read only, cannot write anything"<<endl;
+			return;
+		}
+
 		int currentBlock = file->lastFilledBlock, blockStart = currentBlock*BLOCKSIZE, currentByte = blockStart + file->lastByteInlastFilledBlock;
 		int blockEnd = blockStart + BLOCKSIZE ;
 						cout<<currentByte<<" "<<currentBlock<<" "<<blockStart<<" "<<blockEnd<<endl;
@@ -282,6 +288,9 @@ public:
 						cout<<"Writing "<<newData[i]<<" at "<<currentByte<<endl;
 			virtualDisk[currentByte++] = newData[i];
 		}
+		file->lastFilledBlock = currentBlock;
+		file->lastByteInlastFilledBlock = (currentByte - blockStart);
+					cout<<"AppendCheck "<<file->lastByteInlastFilledBlock<<endl;		
 	}
 
 	int allocateNewBlock(MyFile* file)
@@ -306,6 +315,41 @@ public:
 		return nextValue;
 	}
 
+	void readFile(string fileName, int numberOfBytes)
+	{
+							cout<<"Reading file"<<endl;
+		MyFile *file = (MyFile*)currentDirectory->files.search(fileName);
+
+		if(file == NULL)
+		{
+			cout<<"The file dosen't exists in this directory!"<<endl;
+			return;
+		}
+
+		int currentBlock = file->FATentry, currentByte = currentBlock*BLOCKSIZE,blockStart = currentBlock*BLOCKSIZE, blockEnd = blockStart + BLOCKSIZE;
+		
+							
+		int test = 25;
+		while(!(currentBlock==file->lastFilledBlock && currentByte==(blockStart+file->lastByteInlastFilledBlock+1)))
+		{
+			if(currentByte == blockEnd)
+			{
+				if(FAT[currentBlock]==-1){
+					printf("\n");
+					return;
+				}
+				currentBlock = FAT[currentBlock];
+				currentByte = currentBlock*BLOCKSIZE;
+				blockStart = currentBlock*BLOCKSIZE;
+				blockEnd = blockStart + BLOCKSIZE;
+
+			}
+							//cout<<currentByte<<" "<<currentBlock<<" "<<blockStart<<" "<<blockEnd<<" "<<file->lastByteInlastFilledBlock<<endl;
+			printf("%c",virtualDisk[currentByte++]);
+		}
+		printf("\n");
+	}
+
 
 };
 
@@ -315,5 +359,6 @@ int main()
 	FileSystem filesystem;
 	filesystem.newFile(12,"hello",false);
 	filesystem.appendFile("hello","helloworldfuckedsobadd");
+	filesystem.readFile("hello",12);
 	return 0;
 }
