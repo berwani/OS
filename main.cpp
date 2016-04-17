@@ -4,12 +4,13 @@
 #include<iostream>
 #include<cstdlib>
 #include<math.h>
+#include <ctime>
 
 // #define DISKSIZE 20000000
 // #define BLOCKSIZE 1000
 
-#define DISKSIZE 2000
-#define BLOCKSIZE 10
+#define DISKSIZE 20000000
+#define BLOCKSIZE 1000
 
 using namespace std;
 
@@ -18,6 +19,19 @@ int FAT[DISKSIZE/BLOCKSIZE] = {0};
 list <int> freeBlockList;
 
 
+string getTimeDate()
+{
+	time_t rawtime;
+	struct tm * timeinfo;
+	char buffer[80];
+
+	time (&rawtime);
+	timeinfo = localtime(&rawtime);
+
+	strftime(buffer,80,"%d-%m-%Y %I:%M:%S",timeinfo);
+	string str(buffer);
+	return str;
+}
 
 class Something{
 	
@@ -93,7 +107,7 @@ public:
 				return roo->aTOz[name[index]-97]->data;
 			}
 			else{
-				cout<< "Name dosen't exist in Trie, search again with another name" << endl;
+				cout<< "Name dosen't exist already in Trie" << endl;
 				return NULL;	
 			} 
 		}
@@ -104,7 +118,7 @@ public:
 				return search(roo->aTOz[name[index]-97],name,index+1);
 			}
 			else{
-				cout<< "Name dosen't exist in Trie, search again with another name" << endl;
+				cout<< "Name dosen't exist already in Trie" << endl;
 				return NULL;	
 			}
 		}
@@ -116,6 +130,56 @@ public:
 	}
 
 	
+
+	void deleteString(Node *roo, string name, int index)
+	{
+		if(index == name.size()-1)
+		{
+			if(roo->aTOz[name[index]-97] != NULL){
+						//cout<<"chek "<<(roo->aTOz[name[index]-97])->data->size<<endl;
+				roo->aTOz[name[index]-97]->data = NULL;
+			}
+			else{
+				cout<< "Name dosen't exist in Trie" << endl;
+				return ;	
+			} 
+		}
+		else
+		{
+			if(roo->aTOz[name[index]-97] != NULL){
+							//cout<<"searching towards "<<name[index]<<endl;
+				deleteString(roo->aTOz[name[index]-97],name,index+1);
+			}
+			else{
+				cout<< "Name dosen't exist in Trie" << endl;
+				return ;	
+			}
+		}
+	}
+
+	void deleteString(string name)
+	{
+		deleteString(root,name,0);
+	}
+
+	void printAll(Node *roo, string prefix,char ownChar)
+	{
+		if(roo == NULL)
+			return;
+		if(roo->data != NULL)
+		{
+			cout<<prefix+ownChar<<endl;
+		}
+		for(int i=0;i<26;i++)
+		{
+			printAll(roo->aTOz[i],prefix + ownChar, i+97);
+		}
+	}
+
+	void printAll()
+	{
+		printAll(root,"",' ');
+	}
 };
 
 
@@ -162,6 +226,8 @@ public:
 	{
 		backSlash = new DirectoryTree();
 		backSlash->directoryName = "\\";
+		backSlash->parentDirectory = backSlash;
+		backSlash->created = getTimeDate();
 		for(int i=1;i<DISKSIZE/BLOCKSIZE;i++)
 		{
 			freeBlockList.push_back(i);
@@ -220,13 +286,13 @@ public:
 		bool success = currentDirectory->files.insert(fileName,newf);
 		if(!success)
 		{
-			cout<<"New file not created"<<endl;
+			cout<<"New file not created, file with same name exists"<<endl;
 			return;
 		}
 
 		newf->fileName = fileName;
 		newf->size = fileSize;
-
+		newf->created = getTimeDate();
 		newf->FATentry = allocateSpace(fileSize,newf);
 		newf->lastFilledBlock = newf->FATentry;
 						//cout<<"FATentry = "<<newf->FATentry<<endl;
@@ -308,6 +374,7 @@ public:
 			it++;
 		int nextValue = *it;
 		freeBlockList.erase(it);
+									//cout<<"cheeeeeeeek "<<file->lastBlock<<" "<<nextValue<<endl;
 		FAT[file->lastBlock] = nextValue;
 		FAT[nextValue] = -1;
 		file->lastBlock = nextValue;
@@ -317,7 +384,7 @@ public:
 
 	void readFile(string fileName, int numberOfBytes)
 	{
-							cout<<"Reading file"<<endl;
+							
 		MyFile *file = (MyFile*)currentDirectory->files.search(fileName);
 
 		if(file == NULL)
@@ -325,7 +392,7 @@ public:
 			cout<<"The file dosen't exists in this directory!"<<endl;
 			return;
 		}
-
+							cout<<"Reading file"<<endl;
 		int currentBlock = file->FATentry, currentByte = currentBlock*BLOCKSIZE,blockStart = currentBlock*BLOCKSIZE, blockEnd = blockStart + BLOCKSIZE;
 		
 							
@@ -350,6 +417,94 @@ public:
 		printf("\n");
 	}
 
+	void deleteFile(string fileName)
+	{
+		MyFile *file = (MyFile*)currentDirectory->files.search(fileName);
+
+		if(file == NULL)
+		{
+			cout<<"The file dosen't exists in this directory!"<<endl;
+			return;
+		}
+		currentDirectory->files.deleteString(fileName);
+
+		int currentBlock = file->FATentry,nextBlock;
+		while(FAT[currentBlock]!=-1)
+		{
+								cout<<"deleting block "<<currentBlock<<endl;
+			nextBlock = FAT[currentBlock];
+			FAT[currentBlock] = 0;
+			freeBlockList.push_back(currentBlock);
+			currentBlock = nextBlock;
+		}
+
+		FAT[currentBlock] = 0;
+		freeBlockList.push_back(currentBlock);
+								cout<<"deleting block "<<currentBlock<<endl;
+
+	}
+
+	void ls()
+	{
+		currentDirectory->folders.printAll();
+		currentDirectory->files.printAll();
+	}
+
+	void newDirectory(string directoryName)
+	{
+		DirectoryTree* myFolder = (DirectoryTree*)currentDirectory->folders.search(directoryName);
+		if(myFolder)
+		{
+			cout<<"Folder with same name already exists, try a new name"<<endl;
+			return;
+		}
+
+		myFolder = new DirectoryTree();
+		myFolder->created = getTimeDate();
+		myFolder->parentDirectory = currentDirectory;
+		myFolder->directoryName = directoryName;
+
+		currentDirectory->folders.insert(directoryName,myFolder);
+
+	}
+
+	void changeDirectory(string directoryName)
+	{
+		DirectoryTree* myFolder = (DirectoryTree*)currentDirectory->folders.search(directoryName);
+		if(myFolder==NULL)
+		{
+			cout<<"Folder dosen't exists"<<endl;
+			return;
+		}
+
+		currentDirectory = myFolder;
+
+		cout<<"CurrentDirectory changed to "<<directoryName<<endl;
+	}
+
+	void changeDirectoryParent()
+	{
+		currentDirectory = currentDirectory->parentDirectory;
+		cout<<"CurrentDirectory changed to "<<currentDirectory->directoryName<<endl;
+	}
+
+	void deleteDirectory(string directoryName)
+	{
+		DirectoryTree* myFolder = (DirectoryTree*)currentDirectory->folders.search(directoryName);
+		if(myFolder==NULL)
+		{
+			cout<<"Folder dosen't exists"<<endl;
+			return;
+		}
+
+		if(!myFolder->isEmpty)
+		{
+			cout<<"The directory is not empty and so it cannot be deleted"<<endl;
+			return;
+		}
+
+		currentDirectory->folders.deleteString(directoryName);
+	}
 
 };
 
@@ -357,8 +512,91 @@ int main()
 {
 	srand (time(NULL));
 	FileSystem filesystem;
-	filesystem.newFile(12,"hello",false);
+
+	//TEST CASES :::::::::::::::::::::::
+	/*filesystem.newFile(12,"hello",false);
+	filesystem.newFile(15,"helloworld",false);
 	filesystem.appendFile("hello","helloworldfuckedsobadd");
 	filesystem.readFile("hello",12);
+	//filesystem.deleteFile("helloworld");
+	filesystem.newDirectory("newdir");
+	filesystem.changeDirectory("newdir");
+	filesystem.changeDirectoryParent();
+	//filesystem.deleteDirectory("newdir");
+	filesystem.ls();*/
+
+	while(1)
+	{     
+	   char a[100];
+       scanf ("%[^\n]%*c", a);
+       string b[5];
+       string y;
+       int i=0,j=0,p=0;
+       
+       while(a[i] != '\0')
+       {
+	 	
+	          j=i;
+	          string y;
+	          while(a[j]!=' ' && a[j]!='\0')
+	          {
+	          	
+	                y=y+a[j];
+	                   j++;
+	          }
+	          i=j;
+	          i++;
+	          b[p]=y;
+	   	 	  p++;
+       }
+
+	
+       if(b[0]=="ls")
+       {	
+       		filesystem.ls();	
+       }
+       else if(b[0]=="cd")
+       {
+	     if(b[1]=="..")
+	     {
+	     						cout<<"parent .. "<<endl;
+				filesystem.changeDirectoryParent();     
+	     }else
+	     {
+	     	filesystem.changeDirectory(b[1]);
+	     }
+
+       }
+       else if(b[0]=="fappend")
+       {
+       		filesystem.appendFile(b[1],b[2]);
+       }
+       else if(b[0]=="fcreate")
+       {
+       		bool readOnly;
+       		if(b[3]=="true")
+       			readOnly = true;
+       		else readOnly = false;
+       		filesystem.newFile(atoi(b[1].c_str()),b[2],readOnly);
+       }
+       else if(b[0]=="fdelete")
+       {
+       		filesystem.deleteFile(b[1]);
+       }
+       else if(b[0]=="fread")
+       {
+       		filesystem.readFile(b[1],atoi(b[2].c_str()));
+       }
+       else if(b[0]=="mkdir")
+       {
+       		filesystem.newDirectory(b[1]);
+       }
+       else if(b[0]=="deletedir")
+       {
+       		filesystem.deleteDirectory(b[1]);
+       }
+       else if(b[0]=="exit")
+       		exit(0);
+   }
 	return 0;
 }
