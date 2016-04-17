@@ -1,0 +1,100 @@
+#include<stdio.h>
+#include<list>
+#include<string>
+#include<iostream>
+
+using namespace std;
+
+class Something{
+	
+public:
+	string created;
+	int size = 0;
+	int FATentry = 0;
+	bool readOnly = false;
+};
+
+class Node{
+public:
+	Something* data = NULL;
+	Node* aTOz[26];
+
+	Node()
+	{
+		for(int i=0;i<26;i++)
+			aTOz[i] = NULL;
+	}
+};
+
+class Trie{
+public:
+	Node* root = new Node();
+
+	void insert(Node* roo,string name,Something* d,int index)
+	{
+
+		if(index==name.size()-1)
+		{
+			if(roo->aTOz[name[index]-97] != NULL){
+				cout << "Name already exists in Trie, insert again with another name" << endl;
+				return;
+			}
+
+			roo->aTOz[name[index]-97] = new Node();
+			roo->aTOz[name[index]-97]->data = d;
+		}
+		else
+		{
+			if(roo->aTOz[name[index]-97] == NULL){
+				roo->aTOz[name[index]-97] = new Node();
+			}
+
+			insert(roo->aTOz[name[index]-97],name,d,index+1);	
+		}
+	}
+
+	Something* search(Node* roo, string name,int index)
+	{
+		if(index == name.size()-1)
+		{
+			if(roo->aTOz[name[index]-97] != NULL)
+				return roo->aTOz[name[index]-97]->data;
+			else{
+				cout<< "Name dosen't exist in Trie, search again with another name" << endl;
+				return NULL:	
+			} 
+		}
+		else
+		{
+			if(roo->aTOz[name[index]-97] != NULL)
+				return search(roo->aTOz[name[index]-97],name,index+1);
+			else{
+				cout<< "Name dosen't exist in Trie, search again with another name" << endl;
+				return NULL:	
+			}
+		}
+	}
+
+	Something* search(string name)
+	{
+		return search(root,name,0);
+	}
+
+	
+};
+
+
+class DirectoryTree : public Something{
+public:
+
+};
+
+class MyFile : public Something{
+public:
+
+};
+
+int main()
+{
+	return 0;
+}
