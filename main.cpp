@@ -5,8 +5,11 @@
 #include<cstdlib>
 #include<math.h>
 
-#define DISKSIZE 20000000
-#define BLOCKSIZE 1000
+// #define DISKSIZE 20000000
+// #define BLOCKSIZE 1000
+
+#define DISKSIZE 2000
+#define BLOCKSIZE 10
 
 using namespace std;
 
@@ -122,11 +125,13 @@ public:
 	DirectoryTree* parentDirectory;
 	string directoryName;
 	int size;
+	bool isEmpty;
 	DirectoryTree()
 	{
 		parentDirectory = NULL;
 		directoryName = "";
 		size = 0;
+		isEmpty = true;
 	}
 };
 
@@ -136,6 +141,7 @@ public:
 	bool readOnly ;
 	string fileName;
 	DirectoryTree* parentDirectory;
+	int lastFilledBlock, lastByteInlastFilledBlock, lastBlock;
 
 	MyFile()
 	{
@@ -143,6 +149,7 @@ public:
 		readOnly = false;
 		fileName = "";
 		parentDirectory = NULL;
+		lastBlock = lastFilledBlock = lastByteInlastFilledBlock = 0;
 	}
 };
 
@@ -163,9 +170,15 @@ public:
 		currentDirectory = backSlash;
 	}
 
-	int allocateSpace(int size)
+	int allocateSpace(int size,MyFile* file)
 	{
-		srand (time(NULL));
+		if(freeBlockList.size()==0)
+		{
+			cout<<"Memory Full, System Crash"<<endl;
+			exit(-1);
+		}
+
+		
 		int x = rand()%freeBlockList.size();
 		std::list<int>::iterator it = freeBlockList.begin();
 
@@ -174,7 +187,14 @@ public:
 		int toReturn = *it,nextValue = *it;
 		freeBlockList.erase(it);
 
-		for(int i=1;i<ceil(size/BLOCKSIZE);i++){
+		if(size <= BLOCKSIZE)
+		{
+			file->lastBlock = toReturn;
+			FAT[toReturn] = -1;
+			return toReturn;
+		}
+
+		for(int i=1;i<ceil(size*1.0/BLOCKSIZE);i++){
 
 			x = rand()%freeBlockList.size();
 			it = freeBlockList.begin();
@@ -188,6 +208,9 @@ public:
 			freeBlockList.erase(it);		
 		}
 
+		file->lastBlock = nextValue;
+		FAT[nextValue] = -1;		//Last Block - no next block
+								cout<<"allocating "<<nextValue<<" "<<freeBlockList.size()<<endl;
 		return toReturn;
 	}
 
@@ -204,9 +227,11 @@ public:
 		newf->fileName = fileName;
 		newf->size = fileSize;
 
-		newf->FATentry = allocateSpace(fileSize);
+		newf->FATentry = allocateSpace(fileSize,newf);
+		newf->lastFilledBlock = newf->FATentry;
 						//cout<<"FATentry = "<<newf->FATentry<<endl;
 		newf->parentDirectory = currentDirectory;
+		currentDirectory->isEmpty = false;
 					//Increament Size in all parent directories
 		DirectoryTree* p = currentDirectory;
 
@@ -221,14 +246,74 @@ public:
 		cout<<"File "<<fileName<<" created and first block is at "<<newf->FATentry<<endl;
 	}
 
-	void 
+	void appendFile(string fileName, string newData)
+	{
+		MyFile *file = (MyFile*)currentDirectory->files.search(fileName);
+
+		if(file == NULL)
+		{
+			cout<<"The fie dosen't exists in this directory!"<<endl;
+			return;
+		}
+
+		int currentBlock = file->lastFilledBlock, blockStart = currentBlock*BLOCKSIZE, currentByte = blockStart + file->lastByteInlastFilledBlock;
+		int blockEnd = blockStart + BLOCKSIZE ;
+						cout<<currentByte<<" "<<currentBlock<<" "<<blockStart<<" "<<blockEnd<<endl;
+		for(int i=0;i<newData.size();i++)
+		{
+			if(FAT[currentBlock]==-1 && currentByte==blockEnd)
+			{
+								cout<<"Call to allocate new Block"<<endl;
+				currentBlock = allocateNewBlock(file);
+				currentByte = currentBlock*BLOCKSIZE;
+				blockStart = currentBlock*BLOCKSIZE;
+				blockEnd = blockStart + BLOCKSIZE;
+			}
+
+			else if(currentByte == blockEnd)
+			{
+								cout<<"Block filled, going to next Block"<<endl;
+				currentBlock = FAT[currentBlock];
+				currentByte = currentBlock*BLOCKSIZE;
+				blockStart = currentBlock*BLOCKSIZE;
+				blockEnd = blockStart + BLOCKSIZE;
+
+			}
+						cout<<"Writing "<<newData[i]<<" at "<<currentByte<<endl;
+			virtualDisk[currentByte++] = newData[i];
+		}
+	}
+
+	int allocateNewBlock(MyFile* file)
+	{
+		if(freeBlockList.size()==0)
+		{
+			cout<<"Memory Full, System Crash"<<endl;
+			exit(-1);
+		}
+
+		int x = rand()%freeBlockList.size();
+		std::list<int>::iterator it = freeBlockList.begin();
+
+		for(int i=0;i<x;i++)
+			it++;
+		int nextValue = *it;
+		freeBlockList.erase(it);
+		FAT[file->lastBlock] = nextValue;
+		FAT[nextValue] = -1;
+		file->lastBlock = nextValue;
+						cout<<"New Block allocated "<<nextValue<<endl;
+		return nextValue;
+	}
 
 
 };
 
 int main()
 {
+	srand (time(NULL));
 	FileSystem filesystem;
-	filesystem.newFile(5000,"hello",false);
+	filesystem.newFile(12,"hello",false);
+	filesystem.appendFile("hello","helloworldfuckedsobadd");
 	return 0;
 }
